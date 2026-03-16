@@ -1,0 +1,4 @@
+# ninja log v5
+0	9152	1773579872657728010	/home/mohankumar/Codes/VisTr/Median-Nerve-Segmentation/models/VisTR/models/dcn/build/temp.linux-aarch64-cpython-311/deformable/deform_conv.o	1fcf407fcd10ce13
+0	10380	1773579873878772133	/home/mohankumar/Codes/VisTr/Median-Nerve-Segmentation/models/VisTR/models/dcn/build/temp.linux-aarch64-cpython-311/deformable/deform_conv_cuda_kernel.o	c04660facf18623b
+0	10695	1773579874195783589	/home/mohankumar/Codes/VisTr/Median-Nerve-Segmentation/models/VisTR/models/dcn/build/temp.linux-aarch64-cpython-311/deformable/deform_conv_cuda.o	8de65b7656bd65a8

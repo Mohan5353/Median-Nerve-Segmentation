@@ -1,0 +1,39 @@
+ninja_required_version = 1.3
+cxx = c++
+nvcc = /usr/local/cuda/bin/nvcc
+
+cflags = -pthread -B /home/mohankumar/miniconda3/envs/vistr_blackwell/compiler_compat -Wsign-compare -DNDEBUG -fwrapv -O3 -Wall -fPIC -O2 -isystem /home/mohankumar/miniconda3/envs/vistr_blackwell/include -fPIC -O2 -isystem /home/mohankumar/miniconda3/envs/vistr_blackwell/include -fPIC -DWITH_CUDA -Ideformable -I/home/mohankumar/miniconda3/envs/vistr_blackwell/lib/python3.11/site-packages/torch/include -I/home/mohankumar/miniconda3/envs/vistr_blackwell/lib/python3.11/site-packages/torch/include/torch/csrc/api/include -I/usr/local/cuda/include -I/home/mohankumar/miniconda3/envs/vistr_blackwell/include/python3.11 -c
+post_cflags = -DTORCH_API_INCLUDE_EXTENSION_H -DTORCH_EXTENSION_NAME=_C -std=c++17
+cuda_cflags = -DWITH_CUDA -Ideformable -I/home/mohankumar/miniconda3/envs/vistr_blackwell/lib/python3.11/site-packages/torch/include -I/home/mohankumar/miniconda3/envs/vistr_blackwell/lib/python3.11/site-packages/torch/include/torch/csrc/api/include -I/usr/local/cuda/include -I/home/mohankumar/miniconda3/envs/vistr_blackwell/include/python3.11 -c
+cuda_post_cflags = -D__CUDA_NO_HALF_OPERATORS__ -D__CUDA_NO_HALF_CONVERSIONS__ -D__CUDA_NO_BFLOAT16_CONVERSIONS__ -D__CUDA_NO_HALF2_OPERATORS__ --expt-relaxed-constexpr --compiler-options ''"'"'-fPIC'"'"'' -O3 -DCUDA_HAS_FP16=1 -D__CUDA_NO_HALF_OPERATORS__ -D__CUDA_NO_HALF_CONVERSIONS__ -D__CUDA_NO_HALF2_OPERATORS__ -DTORCH_API_INCLUDE_EXTENSION_H -DTORCH_EXTENSION_NAME=_C -gencode=arch=compute_120,code=compute_120 -gencode=arch=compute_120,code=sm_120 -std=c++17
+cuda_dlink_post_cflags = 
+sycl_dlink_post_cflags = 
+ldflags = 
+
+rule compile
+  command = $cxx -MMD -MF $out.d $cflags -c $in -o $out $post_cflags
+  depfile = $out.d
+  deps = gcc
+
+rule cuda_compile
+  depfile = $out.d
+  deps = gcc
+  command = $nvcc --generate-dependencies-with-compile --dependency-output $out.d $cuda_cflags -c $in -o $out $cuda_post_cflags
+
+
+
+
+
+
+
+build /home/mohankumar/Codes/VisTr/Median-Nerve-Segmentation/models/VisTR/models/dcn/build/temp.linux-aarch64-cpython-311/deformable/deform_conv.o: compile /home/mohankumar/Codes/VisTr/Median-Nerve-Segmentation/models/VisTR/models/dcn/deformable/deform_conv.cpp
+build /home/mohankumar/Codes/VisTr/Median-Nerve-Segmentation/models/VisTR/models/dcn/build/temp.linux-aarch64-cpython-311/deformable/deform_conv_cuda.o: cuda_compile /home/mohankumar/Codes/VisTr/Median-Nerve-Segmentation/models/VisTR/models/dcn/deformable/deform_conv_cuda.cu
+build /home/mohankumar/Codes/VisTr/Median-Nerve-Segmentation/models/VisTR/models/dcn/build/temp.linux-aarch64-cpython-311/deformable/deform_conv_cuda_kernel.o: cuda_compile /home/mohankumar/Codes/VisTr/Median-Nerve-Segmentation/models/VisTR/models/dcn/deformable/deform_conv_cuda_kernel.cu
+
+
+
+
+
+
+
+
