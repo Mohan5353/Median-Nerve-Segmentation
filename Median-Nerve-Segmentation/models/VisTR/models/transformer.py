@@ -15,17 +15,22 @@ import torch.nn.functional as F
 from torch import nn, Tensor
 
 try:
-    from flash_attn import flash_attn_func, flash_attn_varlen_func
-    from flash_attn.bert_padding import pad_input, unpad_input
+    from flash_attn import flash_attn_func
     HAS_FLASH_ATTN = True
 except ImportError:
     HAS_FLASH_ATTN = False
 
+try:
+    from flash_attn.cute import flash_attn_func as flash_attn_func_v4
+    HAS_FLASH_ATTN_V4 = True
+except ImportError:
+    HAS_FLASH_ATTN_V4 = False
+
 
 class FlashMultiheadAttention(nn.Module):
     """
-    A MultiheadAttention module that uses Flash Attention 2 (FA2) when possible.
-    Optimized for NVIDIA Blackwell and Hopper GPUs.
+    A MultiheadAttention module that uses Flash Attention when possible.
+    Optimized for Blackwell (GB10) using FA4 if available.
     """
     def __init__(self, embed_dim, num_heads, dropout=0.0, bias=True):
         super().__init__()
@@ -49,65 +54,41 @@ class FlashMultiheadAttention(nn.Module):
         k = self.k_proj(key).transpose(0, 1)   # [N, L_k, E]
         v = self.v_proj(value).transpose(0, 1) # [N, L_k, E]
 
-        # Reshape to [N, L, H, D]
         q = q.view(N, L, self.num_heads, self.head_dim)
         k = k.view(N, L_k, self.num_heads, self.head_dim)
         v = v.view(N, L_k, self.num_heads, self.head_dim)
 
-        # Flash Attention 2 usually requires half precision (fp16/bf16) on CUDA
-        use_flash_lib = HAS_FLASH_ATTN and q.is_cuda and q.dtype != torch.float32
+        # Flash Attention (FA2/FA4) usually requires half precision (fp16/bf16)
+        use_flash_lib = (HAS_FLASH_ATTN or HAS_FLASH_ATTN_V4) and q.is_cuda and q.dtype != torch.float32
         
-        # If we have a complex attn_mask (not causal), we currently fall back to SDPA
-        # FA2 can handle causal, but complex masks are easier in SDPA
-        if attn_mask is not None or not use_flash_lib:
+        # FA4/FA2 usually don't support custom complex masks easily, use SDPA fallback
+        if attn_mask is not None or key_padding_mask is not None or not use_flash_lib:
             return self._forward_sdpa(q, k, v, N, L, E, L_k, attn_mask, key_padding_mask)
-        
-        try:
-            dropout_p = self.dropout if self.training else 0.0
-            
-            if key_padding_mask is not None:
-                # Use varlen to handle key_padding_mask (unpadding/padding)
-                # key_padding_mask: [N, L] (bool), True means pad
-                # We need to handle cases where Q and KV have different lengths
-                # VisTR often has L_q = L_k = 36
+        else:
+            try:
+                if HAS_FLASH_ATTN_V4:
+                    # Blackwell Optimized Path (FA4)
+                    output = flash_attn_func_v4(q, k, v, causal=False)
+                    if self.dropout > 0 and self.training:
+                        output = torch.nn.functional.dropout(output, p=self.dropout)
+                else:
+                    # Standard FA2 Path
+                    output = flash_attn_func(q, k, v, dropout_p=self.dropout if self.training else 0.0, causal=False)
                 
-                # Unpad Q
-                q_unpadded, indices_q, cu_seqlens_q, max_seqlen_q = unpad_input(q, ~key_padding_mask)
-                # Unpad K/V
-                k_unpadded, indices_k, cu_seqlens_k, max_seqlen_k = unpad_input(k, ~key_padding_mask)
-                v_unpadded, _, _, _ = unpad_input(v, ~key_padding_mask)
-                
-                output_unpadded = flash_attn_varlen_func(
-                    q_unpadded, k_unpadded, v_unpadded,
-                    cu_seqlens_q, cu_seqlens_k,
-                    max_seqlen_q, max_seqlen_k,
-                    dropout_p=dropout_p,
-                    causal=False
-                )
-                output = pad_input(output_unpadded, indices_q, N, L)
-            else:
-                # Normal batch FA2
-                output = flash_attn_func(q, k, v, dropout_p=dropout_p, causal=False)
-            
-            output = output.reshape(N, L, E)
-            output = output.transpose(0, 1) # [L, N, E]
-            return self.out_proj(output), None
-            
-        except Exception as e:
-            # Fallback to SDPA if library call fails
-            return self._forward_sdpa(q, k, v, N, L, E, L_k, attn_mask, key_padding_mask)
+                output = output.reshape(N, L, E)
+                output = output.transpose(0, 1) # [L, N, E]
+                return self.out_proj(output), None
+            except Exception as e:
+                return self._forward_sdpa(q, k, v, N, L, E, L_k, attn_mask, key_padding_mask)
 
     def _forward_sdpa(self, q, k, v, N, L, E, L_k, attn_mask, key_padding_mask):
-        # PyTorch SDPA expects [N, H, L, D]
+        # PyTorch SDPA fallback
         q = q.transpose(1, 2)
         k = k.transpose(1, 2)
         v = v.transpose(1, 2)
         
-        # Convert key_padding_mask to SDPA-compatible attn_mask
         combined_mask = attn_mask
         if key_padding_mask is not None:
-            # key_padding_mask: [N, L_k] bool, True means "pad (ignore)"
-            # SDPA attn_mask: if bool, True means "KEEP (attend)"
             k_mask = (~key_padding_mask).view(N, 1, 1, L_k)
             if combined_mask is not None:
                 if combined_mask.dtype == torch.bool:
@@ -117,7 +98,7 @@ class FlashMultiheadAttention(nn.Module):
             else:
                 combined_mask = k_mask
 
-        output = F.scaled_dot_product_attention(
+        output = torch.nn.functional.scaled_dot_product_attention(
             q, k, v,
             attn_mask=combined_mask,
             dropout_p=self.dropout if self.training else 0.0,
