@@ -5,15 +5,18 @@ This project focuses on median nerve segmentation using deep learning. We have s
 
 ### Environment & Hardware
 - **Machine:** Blackwell Workstation (SM 12.0 / GB10).
-- **Conda Env:** `vistr_blackwell` (Python 3.11).
+- **Branch:** `flash-attn-2` (Latest).
+- **Conda Env:** `vistr_fa2` (Python 3.11).
 - **Core Stack:** PyTorch 2.10.0 (Stable) + CUDA 13.0.
+- **Flash Attention:** Version 2.8.3 (Compiled for SM 12.0).
 - **DCN Module:** Recompiled from source for CUDA 13.0 architecture.
 
 ### Key Modifications & Optimizations
-1. **Flash Attention Integration:**
+1. **Flash Attention 2 Integration:**
    - Modified `models/VisTR/models/transformer.py`.
-   - Implemented `FlashMultiheadAttention` which attempts **Flash Attention v4** (FA4) for Blackwell kernels, falling back to **FA2** or PyTorch **SDPA** as needed.
-   - Handles `key_padding_mask` by converting it to SDPA-compatible attention masks.
+   - Switched to the official `flash-attn` library (FA2).
+   - Implemented `flash_attn_varlen_func` to handle `key_padding_mask` efficiently by unpadding/padding sequences on the fly, avoiding unnecessary computation on pad tokens.
+   - Robust fallback to PyTorch **SDPA** for complex masks or non-CUDA/FP32 paths.
 
 2. **Dataset & Split Logic:**
    - **Structure:** Refactored `dataset.py` to support nested `patient_id/*_IMAGES/images/` and `masks/` directories.
