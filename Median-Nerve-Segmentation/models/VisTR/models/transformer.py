@@ -57,37 +57,14 @@ class FlashMultiheadAttention(nn.Module):
         # Flash Attention 2 usually requires half precision (fp16/bf16) on CUDA
         use_flash_lib = HAS_FLASH_ATTN and q.is_cuda and q.dtype != torch.float32
         
-        # If we have a complex attn_mask (not causal), we currently fall back to SDPA
-        # FA2 can handle causal, but complex masks are easier in SDPA
-        if attn_mask is not None or not use_flash_lib:
+        # If we have masks, fall back to SDPA for now to avoid varlen indexing issues
+        if attn_mask is not None or key_padding_mask is not None or not use_flash_lib:
             return self._forward_sdpa(q, k, v, N, L, E, L_k, attn_mask, key_padding_mask)
         
         try:
             dropout_p = self.dropout if self.training else 0.0
-            
-            if key_padding_mask is not None:
-                # Use varlen to handle key_padding_mask (unpadding/padding)
-                # key_padding_mask: [N, L] (bool), True means pad
-                # We need to handle cases where Q and KV have different lengths
-                # VisTR often has L_q = L_k = 36
-                
-                # Unpad Q
-                q_unpadded, indices_q, cu_seqlens_q, max_seqlen_q = unpad_input(q, ~key_padding_mask)
-                # Unpad K/V
-                k_unpadded, indices_k, cu_seqlens_k, max_seqlen_k = unpad_input(k, ~key_padding_mask)
-                v_unpadded, _, _, _ = unpad_input(v, ~key_padding_mask)
-                
-                output_unpadded = flash_attn_varlen_func(
-                    q_unpadded, k_unpadded, v_unpadded,
-                    cu_seqlens_q, cu_seqlens_k,
-                    max_seqlen_q, max_seqlen_k,
-                    dropout_p=dropout_p,
-                    causal=False
-                )
-                output = pad_input(output_unpadded, indices_q, N, L)
-            else:
-                # Normal batch FA2
-                output = flash_attn_func(q, k, v, dropout_p=dropout_p, causal=False)
+            # Normal batch FA2 (only if no masks)
+            output = flash_attn_func(q, k, v, dropout_p=dropout_p, causal=False)
             
             output = output.reshape(N, L, E)
             output = output.transpose(0, 1) # [L, N, E]
