@@ -1,0 +1,31 @@
+# Model Checkpoints
+*.pth
+*.ckpt
+checkpoints/
+checkpoints_vistr_resnet101/
+checkpoints_unet/
+test_output/
+unet_test_output/
+test_fa2/
+test_fa4/
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+.env
+.venv
+env/
+venv/
+.pytest_cache/
+
+# Datasets (Large files)
+*.zip
+*.tar.gz
+*.tif
+*.jpg
+*.png
+
+# OS
+.DS_Store
+.ipynb_checkpoints/
