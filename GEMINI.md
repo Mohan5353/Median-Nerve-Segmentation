@@ -5,7 +5,7 @@ This project focuses on median nerve segmentation using deep learning. We have s
 
 ### Environment & Hardware
 - **Machine:** Blackwell Workstation (SM 12.0 / GB10).
-- **Branch:** `flash-attn-2` (Latest).
+- **Branch:** `Flash-Attn-V4` (Latest).
 - **Conda Env:** `vistr_fa2` (Python 3.11).
 - **Core Stack:** PyTorch 2.10.0 (Stable) + CUDA 13.0.
 - **Flash Attention:** Version 2.8.3 (Compiled for SM 12.0).
