@@ -155,6 +155,10 @@ def main():
             
         model.to(args.device)
         model.eval()
+
+        # Compile the model for optimized performance on Blackwell/Hopper
+        print("Compiling model for inference...")
+        model = torch.compile(model)
     #     model = add_flops_counting_methods(model)
 
         #  area mm2/ a pixel

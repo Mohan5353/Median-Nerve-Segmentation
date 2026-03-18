@@ -28,6 +28,10 @@ def train_UNet(args, train_loader, val_loader):
     
     model.to(device)
 
+    # Compile the model for optimized performance
+    print("Compiling model...")
+    model = torch.compile(model)
+
     dir_checkpoint = Path(args.output_dir)
     Path(dir_checkpoint).mkdir(parents=True, exist_ok=True)
     
