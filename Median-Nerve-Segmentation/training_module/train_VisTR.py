@@ -23,6 +23,10 @@ def train_VisTR(args, train_loader, val_loader):
     
     model.to(device)
 
+    # Compile the model for optimized performance on Blackwell/Hopper
+    print("Compiling model...")
+    model = torch.compile(model)
+
     model_without_ddp = model
     if args.distributed:
         model = torch.nn.parallel.DistributedDataParallel(model, device_ids=[args.gpu])
