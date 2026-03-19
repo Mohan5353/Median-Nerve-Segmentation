@@ -2,8 +2,8 @@ import argparse
 import warnings
 import torch
 
-# Suppress the CUDA capability mismatch warning for Blackwell GPUs
-warnings.filterwarnings("ignore", message=".*Minimum and Maximum cuda capability supported.*")
+# Suppress all non-critical warnings
+warnings.filterwarnings("ignore")
 
 # Fix for torch.compile + DDP: Disable DDP optimizer for complex graphs
 torch._dynamo.config.optimize_ddp = False

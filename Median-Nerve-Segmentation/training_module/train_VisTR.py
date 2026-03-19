@@ -6,6 +6,8 @@ from pathlib import Path
 import numpy as np
 import torch
 import random
+import warnings
+warnings.filterwarnings("ignore")
 from models.models import get_model
 from models.VisTR.engine import train_one_epoch
 import models.VisTR.util.misc as utils

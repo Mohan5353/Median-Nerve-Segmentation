@@ -8,6 +8,8 @@ import time
 import numpy as np
 from tqdm import tqdm
 import torch
+import warnings
+warnings.filterwarnings("ignore")
 from models.models import get_model
 from torch import optim
 import torch.nn as nn
