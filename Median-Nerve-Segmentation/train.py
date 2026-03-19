@@ -135,6 +135,9 @@ def main():
                                  parents=[get_args_parser()])
     args = parser.parse_args()
 
+    # Initialize distributed mode
+    utils.init_distributed_mode(args)
+
     train_loader, val_loader = get_dataset(args)
 
     print('Model:', args.model_name)
