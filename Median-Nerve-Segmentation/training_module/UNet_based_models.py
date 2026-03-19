@@ -245,4 +245,10 @@ def train_UNet(args, train_loader, val_loader):
     #             torch.save(state_dict, str(dir_checkpoint / 'checkpoint_epoch{}.pth'.format(epoch)))
     #             print(f'Checkpoint {epoch} saved!')
 
+        # Cooldown period between epochs
+        if epoch < num_epochs:
+            if utils.is_main_process():
+                print(f"\nCooldown: Sleeping for 5 minutes before Epoch {epoch+1}...")
+            time.sleep(300)
+
     print("Training finished.")

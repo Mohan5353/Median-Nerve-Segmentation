@@ -7,6 +7,7 @@ import numpy as np
 import torch
 import random
 import warnings
+import time
 warnings.filterwarnings("ignore")
 from models.models import get_model
 from models.VisTR.engine import train_one_epoch
@@ -77,4 +78,10 @@ def train_VisTR(args, train_loader, val_loader):
                     'epoch': epoch,
                     'args': args,
                 }, checkpoint_path)
+        
+        # Cooldown period between epochs
+        if epoch < args.epochs - 1:
+            if utils.is_main_process():
+                print(f"\nCooldown: Sleeping for 5 minutes before Epoch {epoch+1}...")
+            time.sleep(300)
 
