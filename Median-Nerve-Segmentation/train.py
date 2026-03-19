@@ -7,6 +7,7 @@ warnings.filterwarnings("ignore", message=".*Minimum and Maximum cuda capability
 from dataset import get_dataset
 from training_module.UNet_based_models import train_UNet
 from training_module.train_VisTR import train_VisTR
+import models.VisTR.util.misc as utils
 
 
 def get_args_parser():
@@ -133,6 +134,9 @@ def main():
     parser = argparse.ArgumentParser('Model training and evaluation script',
                                  parents=[get_args_parser()])
     args = parser.parse_args()
+
+    # Initialize distributed mode
+    utils.init_distributed_mode(args)
 
     train_loader, val_loader = get_dataset(args)
 

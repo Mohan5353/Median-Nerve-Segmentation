@@ -27,7 +27,8 @@ def train_one_epoch(args, model: torch.nn.Module, criterion: torch.nn.Module,
     header = f'Epoch: [{epoch}]'
     
     # Use tqdm for progress bar
-    pbar = tqdm(total=len(data_loader), desc=header, unit='batch', leave=True, bar_format='{l_bar}{bar:20}{r_bar}{bar:-20b}')
+    pbar = tqdm(total=len(data_loader), desc=header, unit='batch', leave=True, bar_format='{l_bar}{bar:20}{r_bar}{bar:-20b}',
+                disable=not utils.is_main_process())
     
     for samples, targets in data_loader:
         samples = samples.to(device)
@@ -89,7 +90,8 @@ def evaluate(model, criterion, postprocessors, data_loader, base_ds, device, out
          metric_logger.add_meter('class_error', utils.SmoothedValue(window_size=1, fmt='{value:.2f}'))
     
     header = 'Test:'
-    pbar = tqdm(total=len(data_loader), desc=header, unit='batch', leave=True, bar_format='{l_bar}{bar:20}{r_bar}{bar:-20b}')
+    pbar = tqdm(total=len(data_loader), desc=header, unit='batch', leave=True, bar_format='{l_bar}{bar:20}{r_bar}{bar:-20b}',
+                disable=not utils.is_main_process())
 
     iou_types = tuple(k for k in ('segm', 'bbox') if k in postprocessors.keys())
     coco_evaluator = CocoEvaluator(base_ds, iou_types)

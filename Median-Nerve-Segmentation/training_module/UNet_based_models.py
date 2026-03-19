@@ -14,6 +14,7 @@ import torch.nn as nn
 from utils.dice_metric import dice_coeff, LogCoshDiceLoss, DiceLoss
 from dataset import key_func
 from utils.utils import save_loss_and_performance_plot
+import models.VisTR.util.misc as utils
 
 def train_UNet(args, train_loader, val_loader):
     
@@ -31,6 +32,12 @@ def train_UNet(args, train_loader, val_loader):
     # Compile the model for optimized performance
     print("Compiling model...")
     model = torch.compile(model)
+
+    if args.distributed:
+        model = torch.nn.parallel.DistributedDataParallel(model, device_ids=[args.gpu])
+        model_without_ddp = model.module
+    else:
+        model_without_ddp = model
 
     dir_checkpoint = Path(args.output_dir)
     Path(dir_checkpoint).mkdir(parents=True, exist_ok=True)
@@ -79,6 +86,9 @@ def train_UNet(args, train_loader, val_loader):
 
     for epoch in range(start_epoch, num_epochs + 1):
 
+        if args.distributed:
+            train_loader.sampler.set_epoch(epoch)
+
         model.train()  # Set model to training mode
     
         train_loss = 0.0
@@ -88,7 +98,8 @@ def train_UNet(args, train_loader, val_loader):
         start = time.time()
 
         with tqdm(total=args.n_train, desc=f'Epoch [{epoch}/{num_epochs}]', 
-                  unit='img', leave=True, bar_format='{l_bar}{bar:20}{r_bar}{bar:-20b}') as pbar:
+                  unit='img', leave=True, bar_format='{l_bar}{bar:20}{r_bar}{bar:-20b}',
+                  disable=not utils.is_main_process()) as pbar:
             
             for batch in train_loader:
                 
@@ -154,7 +165,8 @@ def train_UNet(args, train_loader, val_loader):
         start = time.time()
         with torch.no_grad():
             with tqdm(total=args.n_val, desc=f'Validation [{epoch}/{num_epochs}]',
-                      unit='img', leave=True, bar_format='{l_bar}{bar:20}{r_bar}{bar:-20b}') as pbar:
+                      unit='img', leave=True, bar_format='{l_bar}{bar:20}{r_bar}{bar:-20b}',
+                      disable=not utils.is_main_process()) as pbar:
 
                 for val_batch in val_loader:
 
@@ -210,17 +222,19 @@ def train_UNet(args, train_loader, val_loader):
         # exp_lr_scheduler.step()
         after_lr = optimizer.param_groups[0]["lr"]
         
-        print(f"\t Validation Loss: {val_epoch_loss:.4f}, Dice Score: {val_epoch_dice:.4f}, Time: {(end-start)/60:.2f} mins")
-        print("\t Learning Rate: %.6f -> %.6f" % (before_lr, after_lr))
-        
-        #Save Plot
-        save_loss_and_performance_plot(args)
+        if utils.is_main_process():
+            print(f"\t Validation Loss: {val_epoch_loss:.4f}, Dice Score: {val_epoch_dice:.4f}, Time: {(end-start)/60:.2f} mins")
+            print("\t Learning Rate: %.6f -> %.6f" % (before_lr, after_lr))
+            
+            #Save Plot
+            save_loss_and_performance_plot(args)
 
         #Save checkpoint
         if val_epoch_dice > prev_val_dice:
-            state_dict = model.state_dict()
-            torch.save(state_dict, str(dir_checkpoint / 'checkpoint_epoch.pth'))
-            print(f'Checkpoint {epoch} saved!')
+            if utils.is_main_process():
+                state_dict = model_without_ddp.state_dict()
+                torch.save(state_dict, str(dir_checkpoint / 'checkpoint_epoch.pth'))
+                print(f'Checkpoint {epoch} saved!')
             prev_val_dice = val_epoch_dice
 
     #         if epoch % args.save_intervals == 0:

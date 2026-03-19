@@ -226,14 +226,19 @@ def get_dataset(args):
             val_image_list, val_mask_list = collect_files_vistr(val_images_dirs)
             val_dataset = ImagePathDataset_vistr(val_image_list, val_mask_list, num_frames, transform=make_transform(image_set='val'))
 
-            sampler_train = torch.utils.data.RandomSampler(train_dataset)
+            if args.distributed:
+                sampler_train = torch.utils.data.DistributedSampler(train_dataset)
+                sampler_val = torch.utils.data.DistributedSampler(val_dataset, shuffle=False)
+            else:
+                sampler_train = torch.utils.data.RandomSampler(train_dataset)
+                sampler_val = torch.utils.data.SequentialSampler(val_dataset)
+
             batch_sampler_train = torch.utils.data.BatchSampler(sampler_train, args.batch_size, drop_last=True)
             data_loader_train = DataLoader(train_dataset, batch_sampler=batch_sampler_train, collate_fn=utils.collate_fn, num_workers=args.num_workers)
             
             args.n_train = len(train_dataset)
             args.n_val = len(val_dataset)
             
-            sampler_val = torch.utils.data.SequentialSampler(val_dataset)
             batch_sampler_val = torch.utils.data.BatchSampler(sampler_val, args.batch_size, drop_last=False)
             data_loader_val = DataLoader(val_dataset, batch_sampler=batch_sampler_val, collate_fn=utils.collate_fn, num_workers=args.num_workers)
 
@@ -242,6 +247,13 @@ def get_dataset(args):
     if args.test_batch_size:
         return DataLoader(test_dataset, shuffle=False, **test_kwargs), None
     else:
-        train_loader = DataLoader(train_dataset, shuffle=True, **train_kwargs)
-        val_loader = DataLoader(val_dataset, shuffle=False, **val_kwargs)
+        if args.distributed:
+            sampler_train = torch.utils.data.DistributedSampler(train_dataset)
+            sampler_val = torch.utils.data.DistributedSampler(val_dataset, shuffle=False)
+        else:
+            sampler_train = None
+            sampler_val = None
+
+        train_loader = DataLoader(train_dataset, shuffle=(sampler_train is None), sampler=sampler_train, **train_kwargs)
+        val_loader = DataLoader(val_dataset, shuffle=False, sampler=sampler_val, **val_kwargs)
         return train_loader, val_loader

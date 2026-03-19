@@ -57,7 +57,7 @@ def train_VisTR(args, train_loader, val_loader):
     print("Start training")
     for epoch in range(args.start_epoch, args.epochs):
         if args.distributed:
-            sampler_train.set_epoch(epoch)
+            train_loader.batch_sampler.sampler.set_epoch(epoch)
         train_stats = train_one_epoch(
             args, model, criterion, train_loader, optimizer, device, epoch,
             args.clip_max_norm)
