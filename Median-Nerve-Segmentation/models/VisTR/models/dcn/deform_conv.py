@@ -10,6 +10,10 @@ from torch.nn.modules.utils import _pair
 
 from . import _C
 
+# Allow torch.compile to trace through custom DCN functions
+torch.compiler.allow_in_graph(deform_conv)
+torch.compiler.allow_in_graph(modulated_deform_conv)
+
 class _NewEmptyTensorOp(torch.autograd.Function):
     @staticmethod
     def forward(ctx, x, new_shape):
