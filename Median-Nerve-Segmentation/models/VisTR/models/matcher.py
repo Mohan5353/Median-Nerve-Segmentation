@@ -56,7 +56,14 @@ class HungarianMatcher(nn.Module):
             iou_cost = -1 * multi_iou(box_cxcywh_to_xyxy(out_bbox_split),box_cxcywh_to_xyxy(tgt_bbox_split)).mean(-1)
             #TODO: only deal with box and mask with empty target
             cost = self.cost_class*class_cost + self.cost_bbox*bbox_cost + self.cost_giou*iou_cost
-            out_i, tgt_i = linear_sum_assignment(cost.cpu())
+            
+            # Numerical safety: Convert to float32 and replace NaNs/Infs
+            cost = cost.detach().cpu()
+            if not torch.isfinite(cost).all():
+                # print(f"Warning: Matcher encountered non-finite values in cost matrix. Sanitzing...")
+                cost = torch.nan_to_num(cost, nan=100.0, posinf=100.0, neginf=-100.0)
+
+            out_i, tgt_i = linear_sum_assignment(cost.numpy())
             index_i,index_j = [],[]
             for j in range(len(out_i)):
                 tgt_valid_ind_j = tgt_valid_split[j].nonzero().flatten()
