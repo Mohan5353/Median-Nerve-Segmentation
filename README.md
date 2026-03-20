@@ -9,18 +9,31 @@ This branch contains the **Flash Attention 2** optimized version of the Median N
 - **Torch Compile:** Model compilation enabled for both training and inference.
 - **Unified Dataset Mode:** `--same_dataset` flag for full dataset utilization.
 
-## Training with DDP
+## Training with DDP (Multi-GPU)
 
-To train on multiple GPUs (e.g., 2 GPUs), use `torchrun`:
+To train on multiple GPUs (e.g., Dual A6000 with NVLink), use this optimized command which suppresses non-critical logs and enables the 5-minute cooldown between epochs:
 
 ```bash
 cd Median-Nerve-Segmentation/
-export PYTHONUNBUFFERED=1
-torchrun --nproc_per_node=2 train.py --model_name vistr --loss bce dice --epochs 100 --batch_size 1 --num_workers 4 --device cuda --data_path ~/DATA-VisTr/ --same_dataset
+export PYTHONUNBUFFERED=1 
+export PYTHONWARNINGS='ignore' 
+export TORCH_CPP_LOG_LEVEL=ERROR 
+export TORCH_DISTRIBUTED_DEBUG=OFF 
+
+torchrun --nproc_per_node=2 train.py \
+    --model_name vistr \
+    --loss bce dice \
+    --epochs 100 \
+    --batch_size 2 \
+    --num_workers 4 \
+    --device cuda \
+    --data_path /home/vaishnavi/DATA-VisTr/ \
+    --same_dataset
 ```
 
-For single GPU training, the standard command still works:
+For single GPU training on the Blackwell workstation:
 ```bash
+export PYTHONUNBUFFERED=1
 python train.py --model_name vistr --loss bce dice --epochs 100 --batch_size 1 --num_workers 10 --device cuda --data_path ~/DATA-VisTr/ --same_dataset
 ```
 
