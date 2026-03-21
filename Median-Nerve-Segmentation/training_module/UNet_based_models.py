@@ -31,10 +31,6 @@ def train_UNet(args, train_loader, val_loader):
     
     model.to(device)
 
-    # Compile the model for optimized performance
-    print("Compiling model...")
-    model = torch.compile(model)
-
     if args.distributed:
         model = torch.nn.parallel.DistributedDataParallel(model, device_ids=[args.gpu], static_graph=True)
         model_without_ddp = model.module
