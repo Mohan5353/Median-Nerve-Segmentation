@@ -6,6 +6,8 @@ import os
 import re
 import torch
 import random
+import datetime
+import pandas as pd
 from torch.utils.data import random_split, DataLoader
 import torchvision.transforms as T
 from utils.ImagePathDataset import *
@@ -20,6 +22,23 @@ def key_func(x):
         return x
     return "{:>10}".format(mat.group(1)) # right align to 10 digits
 
+
+def save_split_logs(train_list, val_list, test_list):
+    if not utils.is_main_process():
+        return
+    
+    timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
+    log_dir = os.path.join("meta_logs", f"run_{timestamp}")
+    os.makedirs(log_dir, exist_ok=True)
+    
+    # Clean paths for cleaner CSVs
+    def clean_paths(p_list):
+        return [os.path.basename(p) for p in p_list]
+    
+    pd.DataFrame({"patient_id": clean_paths(train_list)}).to_csv(os.path.join(log_dir, "train.csv"), index=False)
+    pd.DataFrame({"patient_id": clean_paths(val_list)}).to_csv(os.path.join(log_dir, "val.csv"), index=False)
+    pd.DataFrame({"patient_id": clean_paths(test_list)}).to_csv(os.path.join(log_dir, "test.csv"), index=False)
+    print(f"Dataset split logs saved to: {log_dir}")
 
 def get_dataset(args):
     
@@ -50,6 +69,9 @@ def get_dataset(args):
         
         print(f"Total patients found: {num_patients}")
         print(f"Patient-wise Split: {len(train_patients)} train, {len(val_patients)} val, {len(test_patients)} test")
+
+    # Save split logs to CSV
+    save_split_logs(train_patients, val_patients, test_patients)
 
     def get_images_dirs(patient_list):
         dirs = []
