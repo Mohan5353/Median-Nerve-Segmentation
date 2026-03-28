@@ -1,41 +1,40 @@
-# Median Nerve Segmentation - Flash Attention 2 + DDP Branch
+# Median Nerve Segmentation - Flash Attention 2 + PyTorch Lightning
 
-This branch contains the **Flash Attention 2** optimized version of the Median Nerve Segmentation project with **Distributed Data Parallel (DDP)** support for multi-GPU training.
+This branch contains the **PyTorch Lightning** implementation of the project, optimized for **Flash Attention 2** and Multi-GPU training (DDP).
 
 ## Key Features
-- **Flash Attention 2 Integration:** Optimized Transformer implementation using `flash_attn_func`.
-- **Distributed Data Parallel (DDP):** Support for scaling training across multiple GPUs.
-- **BF16 Precision:** Native BFloat16 training for maximum performance on Blackwell/Hopper.
-- **Torch Compile:** Model compilation enabled for both training and inference.
-- **Unified Dataset Mode:** `--same_dataset` flag for full dataset utilization.
+- **PyTorch Lightning Module:** Reorganized code for better modularity and stability.
+- **Flash Attention 2:** High-speed attention kernels for Blackwell/Ampere.
+- **Native DDP:** Automated multi-GPU synchronization and scaling.
+- **Machine Safety:** Custom `CooldownCallback` implements a 5-minute pause between epochs.
+- **Automatic Precision:** Managed `bf16-mixed` precision for Blackwell Tensor Cores.
 
-## Training with DDP (Multi-GPU)
+## Training with PyTorch Lightning (Multi-GPU)
 
-To train on multiple GPUs (e.g., Dual A6000 with NVLink), use this optimized command which suppresses non-critical logs and enables the 5-minute cooldown between epochs:
+To train on multiple GPUs (e.g., 2x A6000) using the Lightning Trainer:
 
 ```bash
 cd Median-Nerve-Segmentation/
-export PYTHONUNBUFFERED=1 
-export PYTHONWARNINGS='ignore' 
-export TORCH_CPP_LOG_LEVEL=ERROR 
-export TORCH_DISTRIBUTED_DEBUG=OFF 
+export PYTHONUNBUFFERED=1
 
-torchrun --nproc_per_node=2 train.py \
+python train_lightning.py \
     --model_name vistr \
     --loss bce dice \
     --epochs 100 \
-    --batch_size 2 \
-    --num_workers 4 \
-    --device cuda \
+    --batch_size 1 \
+    --world_size 2 \
+    --accelerator gpu \
+    --strategy ddp \
     --data_path /home/vaishnavi/DATA-VisTr/ \
     --same_dataset
 ```
 
-For single GPU training on the Blackwell workstation:
-```bash
-export PYTHONUNBUFFERED=1
-python train.py --model_name vistr --loss bce dice --epochs 100 --batch_size 1 --num_workers 10 --device cuda --data_path ~/DATA-VisTr/ --same_dataset
-```
+## Advantages of this Version
+1. **Simplified Setup:** No need for manual `init_distributed_mode` or `DistributedSampler` logic.
+2. **Robust Logging:** Built-in TensorBoard support (`lightning_logs/`).
+3. **Smart Checkpointing:** Automatically saves the best 3 models based on `val_loss`.
+4. **Resumability:** Better handling of `trainer.fit(model, ckpt_path=...)`.
+
 
 ## Testing
 To test the model:
