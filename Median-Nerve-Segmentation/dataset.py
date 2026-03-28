@@ -264,9 +264,14 @@ def get_dataset(args):
             batch_sampler_val = torch.utils.data.BatchSampler(sampler_val, args.batch_size, drop_last=False)
             data_loader_val = DataLoader(val_dataset, batch_sampler=batch_sampler_val, collate_fn=utils.collate_fn, num_workers=args.num_workers)
 
+            if getattr(args, 'return_dataset', False):
+                return train_dataset, val_dataset
+
             return data_loader_train, data_loader_val
     
     if args.test_batch_size:
+        if getattr(args, 'return_dataset', False):
+            return test_dataset, None
         return DataLoader(test_dataset, shuffle=False, **test_kwargs), None
     else:
         if args.distributed:
@@ -275,6 +280,9 @@ def get_dataset(args):
         else:
             sampler_train = None
             sampler_val = None
+
+        if getattr(args, 'return_dataset', False):
+            return train_dataset, val_dataset
 
         train_loader = DataLoader(train_dataset, shuffle=(sampler_train is None), sampler=sampler_train, **train_kwargs)
         val_loader = DataLoader(val_dataset, shuffle=False, sampler=sampler_val, **val_kwargs)

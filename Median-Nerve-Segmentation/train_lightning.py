@@ -6,9 +6,10 @@ import warnings
 import datetime
 import pandas as pd
 import pytorch_lightning as pl
-from pytorch_lightning import Trainer, LightningModule, LightningDataModule
+from pytorch_lightning import Trainer, LightningModule
 from pytorch_lightning.callbacks import ModelCheckpoint, TQDMProgressBar, Callback
 from pytorch_lightning.loggers import TensorBoardLogger
+from torch.utils.data import DataLoader
 from pathlib import Path
 
 from dataset import get_dataset
@@ -27,10 +28,12 @@ class CooldownCallback(Callback):
             time.sleep(300)
 
 class VisTRLightningModule(LightningModule):
-    def __init__(self, args):
+    def __init__(self, args, train_dataset=None, val_dataset=None):
         super().__init__()
         self.args = args
-        self.save_hyperparameters(args)
+        self.train_set = train_dataset
+        self.val_set = val_dataset
+        self.save_hyperparameters(ignore=['train_dataset', 'val_dataset'])
         
         # Instantiate model, criterion, and postprocessors
         self.model, self.criterion, self.postprocessors = get_model(args)
@@ -55,7 +58,6 @@ class VisTRLightningModule(LightningModule):
         weight_dict = self.criterion.weight_dict
         losses = sum(loss_dict[k] * weight_dict[k] for k in loss_dict.keys() if k in weight_dict)
         
-        # Log training losses
         self.log("train_loss", losses, on_step=True, on_epoch=True, prog_bar=True, sync_dist=True)
         return losses
 
@@ -71,7 +73,6 @@ class VisTRLightningModule(LightningModule):
         return losses
 
     def configure_optimizers(self):
-        # Setup optimizer with different learning rates for backbone
         param_dicts = [
             {"params": [p for n, p in self.model.named_parameters() if "backbone" not in n and p.requires_grad]},
             {
@@ -83,12 +84,29 @@ class VisTRLightningModule(LightningModule):
         lr_scheduler = torch.optim.lr_scheduler.StepLR(optimizer, self.args.lr_drop)
         return [optimizer], [lr_scheduler]
 
+    def train_dataloader(self):
+        return DataLoader(
+            self.train_set, 
+            batch_size=self.args.batch_size, 
+            collate_fn=utils.collate_fn, 
+            num_workers=self.args.num_workers,
+            shuffle=True
+        )
+
+    def val_dataloader(self):
+        return DataLoader(
+            self.val_set, 
+            batch_size=self.args.batch_size, 
+            collate_fn=utils.collate_fn, 
+            num_workers=self.args.num_workers,
+            shuffle=False
+        )
+
 def get_args_parser():
-    # Reuse your existing parser logic
     from train import get_args_parser as base_parser
     parser = argparse.ArgumentParser('VisTR Lightning Training', parents=[base_parser()])
     parser.add_argument('--accelerator', default='gpu', type=str)
-    parser.add_argument('--strategy', default='ddp_find_unused_parameters_true', type=str)
+    parser.add_argument('--strategy', default='ddp', type=str)
     parser.add_argument('--nodes', default=1, type=int)
     return parser
 
@@ -96,19 +114,16 @@ def main():
     parser = get_args_parser()
     args = parser.parse_args()
     
-    # Set seed for reproducibility
     pl.seed_everything(args.seed)
 
-    # Initialize Distributed Mode to set args.distributed for dataset.py
-    utils.init_distributed_mode(args)
+    # Tell get_dataset to return raw datasets
+    args.return_dataset = True
+    args.distributed = False # Let Lightning handle DDP sampling internally
     
-    # Setup DataLoaders
-    train_loader, val_loader = get_dataset(args)
+    train_dataset, val_dataset = get_dataset(args)
 
-    # Instantiate Model
-    model = VisTRLightningModule(args)
+    model = VisTRLightningModule(args, train_dataset=train_dataset, val_dataset=val_dataset)
 
-    # Setup Callbacks and Loggers
     checkpoint_callback = ModelCheckpoint(
         dirpath=args.output_dir,
         filename='checkpoint-{epoch:02d}-{val_loss:.2f}',
@@ -119,22 +134,20 @@ def main():
     
     logger = TensorBoardLogger("lightning_logs", name=args.model_name)
 
-    # Setup Trainer
     trainer = Trainer(
         accelerator=args.accelerator,
         strategy=args.strategy,
         devices=args.world_size if args.device == 'cuda' else 1,
         num_nodes=args.nodes,
         max_epochs=args.epochs,
-        precision='bf16-mixed', # Native Blackwell/Ampere BF16 support
+        precision='bf16-mixed',
         callbacks=[checkpoint_callback, TQDMProgressBar(refresh_rate=10), CooldownCallback()],
         logger=logger,
         log_every_n_steps=10
     )
 
-    # Start Training
     print(f"Starting Lightning Training for {args.model_name}...")
-    trainer.fit(model, train_dataloaders=train_loader, val_dataloaders=val_loader)
+    trainer.fit(model)
 
 if __name__ == '__main__':
     main()
