@@ -99,8 +99,8 @@ def main():
     # Set seed for reproducibility
     pl.seed_everything(args.seed)
 
-    # Initialize Distributed Mode (internal Lightning setup)
-    # Note: We don't call utils.init_distributed_mode manually here as Trainer handles it.
+    # Initialize Distributed Mode to set args.distributed for dataset.py
+    utils.init_distributed_mode(args)
     
     # Setup DataLoaders
     train_loader, val_loader = get_dataset(args)
